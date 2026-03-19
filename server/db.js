@@ -51,19 +51,29 @@ const createSqliteDB = async () => {
 };
 
 export const initDB = async () => {
-  const mysqlConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-  };
+  let mysqlConfig;
+  
+  // If a full connection string is provided (standard for remote DBs like Aiven, PlanetScale)
+  if (process.env.DATABASE_URL) {
+    mysqlConfig = process.env.DATABASE_URL;
+  } else {
+    mysqlConfig = {
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'deeptrust_db'
+    };
+  }
 
   try {
     console.log('DB: Attempting MySQL connection...');
     const connection = await mysql.createConnection(mysqlConfig);
-    await connection.query(`CREATE DATABASE IF NOT EXISTS ${process.env.DB_NAME || 'deeptrust_db'}`);
+    if (!process.env.DATABASE_URL) {
+      await connection.query(`CREATE DATABASE IF NOT EXISTS ${process.env.DB_NAME || 'deeptrust_db'}`);
+    }
     await connection.end();
 
-    db = mysql.createPool({ ...mysqlConfig, database: process.env.DB_NAME || 'deeptrust_db' });
+    db = mysql.createPool(mysqlConfig);
     mode = 'mysql';
     console.log('DB: MySQL operational and schema verified.');
     
@@ -96,7 +106,13 @@ export const initDB = async () => {
     `);
   } catch (err) {
     console.warn('DB: MySQL connection failed. Error:', err.message);
-    console.warn('DB: Falling back to SQLite for persistence.');
+    
+    if (process.env.VERCEL === '1') {
+      console.error('DB: SQLite fallback is DISABLED on Vercel. You MUST provide valid MySQL credentials.');
+      throw new Error('Database connection failed on Vercel. Remote MySQL required.');
+    }
+
+    console.warn('DB: Falling back to SQLite for local development.');
     db = await createSqliteDB();
     mode = 'sqlite';
   }
