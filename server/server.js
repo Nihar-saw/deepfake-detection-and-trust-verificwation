@@ -3,6 +3,7 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -26,15 +27,16 @@ app.use(express.json());
 // Database is initialized asynchronously in startServer() at the bottom of this file
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+const isVercel = process.env.VERCEL === '1';
+const uploadsDir = isVercel ? os.tmpdir() : path.join(__dirname, 'uploads');
+if (!isVercel && !fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 // Multer Config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'server/uploads/'); 
+    cb(null, uploadsDir); 
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '_'));
@@ -192,15 +194,19 @@ app.get('/api/results/:id', async (req, res) => {
 });
 
 // Serve uploads
-app.use('/uploads', express.static('server/uploads'));
+app.use('/uploads', express.static(uploadsDir));
 
 // Initialize Database before starting server
 const startServer = async () => {
   await initDB();
 
-  app.listen(PORT, () => {
-    console.log(`DeepTrust Intelligence Server running at http://localhost:${PORT}`);
-  });
+  if (!isVercel) {
+    app.listen(PORT, () => {
+      console.log(`DeepTrust Intelligence Server running at http://localhost:${PORT}`);
+    });
+  }
 };
 
 startServer();
+
+export default app;
