@@ -9,7 +9,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, 
   BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip 
 } from 'recharts';
-import { useToast } from '../App';
+import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 
 const DashboardPage = () => {
@@ -18,13 +18,22 @@ const DashboardPage = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    // Try to get result from localStorage (passed from UploadPage)
-    const stored = localStorage.getItem('currentAnalysis');
-    if (stored) {
-      setResult(JSON.parse(stored));
-    } else {
-      // Fallback if accessed directly
-      showToast("No active analysis found. Redirecting to upload...");
+    try {
+      const stored = localStorage.getItem('currentAnalysis');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          setResult(parsed);
+        } else {
+          throw new Error("Invalid report format");
+        }
+      } else {
+        showToast("No active analysis found. Redirecting...");
+        navigate('/upload');
+      }
+    } catch (err) {
+      console.error("Dashboard Load Error:", err);
+      showToast("Forensic data corrupted. Please scan again.");
       navigate('/upload');
     }
   }, []);
@@ -35,9 +44,10 @@ const DashboardPage = () => {
     </div>
   );
 
+  const score = result.authenticity_score ?? 0;
   const chartData = [
-    { name: 'Authenticity', value: result.authenticity_score },
-    { name: 'Deception', value: 100 - result.authenticity_score },
+    { name: 'Authenticity', value: score },
+    { name: 'Deception', value: 100 - score },
   ];
 
   const barData = result.forensic_breakdown || [

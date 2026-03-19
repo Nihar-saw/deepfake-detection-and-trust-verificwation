@@ -1,116 +1,277 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Shield, Mail, Lock, User, Github, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Shield, Mail, Lock, User, ArrowRight, Github, Chrome } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
-export const AuthPages = ({ isLogin }) => {
-  const [showPassword, setShowPassword] = useState(false);
+const AuthPages = ({ isLogin }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [pickerType, setPickerType] = useState(null); // 'google' or 'github'
+  
+  const { login, signup, oauthLogin, isAuthenticated } = useAuth();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const from = location.state?.from?.pathname || '/upload';
+
+  const handleOAuthTrigger = (type) => {
+    setPickerType(type);
+  };
+
+  const handleOAuthSelect = async (account) => {
+    const type = pickerType;
+    setPickerType(null);
+    setIsLoading(true);
+    try {
+      const mockOAuthData = {
+        email: account.email,
+        name: account.name,
+        provider: type,
+        providerId: `${type}_` + Math.random().toString(36).substr(2, 9)
+      };
+      await oauthLogin(type, mockOAuthData);
+      showToast(`Welcome back, ${account.name.split(' ')[0]}!`);
+      navigate(from, { replace: true });
+    } catch (err) {
+      showToast(`${type} login failed.`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    console.log("AuthPages: Attempting", isLogin ? "Login" : "Signup", "for", email);
+    
+    try {
+      if (isLogin) {
+        await login(email, password);
+        showToast("Welcome back!");
+      } else {
+        await signup(email, name, password);
+        showToast("Account created successfully!");
+      }
+      console.log("AuthPages: Auth Success, redirecting to", from);
+      navigate(from, { replace: true });
+    } catch (err) {
+      console.error("AuthPages: Error:", err);
+      showToast("Authentication failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="max-w-md mx-auto px-4 py-16">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="glass p-8 md:p-10 rounded-[2.5rem] border border-white/10 shadow-2xl"
+    <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md glass p-10 rounded-[2.5rem] shadow-2xl border border-white/10 relative overflow-hidden"
       >
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary-500 to-indigo-500" />
+        
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-primary-500 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-lg shadow-primary-500/30">
-            <Shield className="w-8 h-8 text-white" />
+          <div className="inline-flex p-4 bg-primary-500/10 rounded-2xl mb-6">
+            <Shield className="w-10 h-10 text-primary-500" />
           </div>
-          <h2 className="text-3xl font-bold mb-2">{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
+          <h2 className="text-3xl font-black mb-2 tracking-tight">
+            {isLogin ? 'Welcome Back' : 'Create Account'}
+          </h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            {isLogin 
-              ? 'Enter your credentials to access your secure reports.' 
-              : 'Join the network of trust and start verifying media today.'}
+            {isLogin ? 'Access your forensic dashboard' : 'Join the mission for truth and transparency'}
           </p>
         </div>
 
-        <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+        <form onSubmit={handleSubmit} className="space-y-6">
           {!isLogin && (
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-slate-400 ml-1">Full Name</label>
+              <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Full Name</label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input 
                   type="text" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   placeholder="John Doe" 
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 transition-all"
+                  required
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all outline-none text-sm font-medium"
                 />
               </div>
             </div>
           )}
 
           <div className="space-y-2">
-            <label className="text-xs font-bold uppercase text-slate-400 ml-1">Email Address</label>
+            <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Email Address</label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input 
                 type="email" 
-                placeholder="name@company.com" 
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 transition-all"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com" 
+                required
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all outline-none text-sm font-medium"
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-bold uppercase text-slate-400 ml-1">Password</label>
+            <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Password</label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input 
-                type={showPassword ? "text" : "password"} 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••" 
-                className="w-full pl-12 pr-12 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl focus:ring-2 focus:ring-primary-500 transition-all"
+                required
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all outline-none text-sm font-medium"
               />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
             </div>
           </div>
 
-          <button
-            className="w-full py-4 bg-primary-500 text-white rounded-2xl font-bold flex items-center justify-center space-x-2 shadow-xl shadow-primary-500/20 hover:bg-primary-600 transition-all active:scale-95 mt-4"
+          <button 
+            type="submit"
+            disabled={isLoading}
+            className="w-full py-4 bg-primary-500 text-white rounded-2xl font-black shadow-xl shadow-primary-500/20 hover:bg-primary-600 transition-all active:scale-[0.98] flex items-center justify-center space-x-2 disabled:opacity-50"
           >
-            <span>{isLogin ? 'Sign In' : 'Create Account'}</span>
-            <ArrowRight className="w-5 h-5" />
+            {isLoading ? (
+               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <>
+                <span>{isLogin ? 'Sign In' : 'Create Account'}</span>
+                <ArrowRight className="w-5 h-5" />
+              </>
+            )}
           </button>
         </form>
 
-        <div className="mt-8 flex items-center space-x-4">
-          <div className="flex-grow h-[1px] bg-slate-100 dark:bg-slate-800" />
-          <span className="text-xs text-slate-400 font-medium">OR CONTINUE WITH</span>
-          <div className="flex-grow h-[1px] bg-slate-100 dark:bg-slate-800" />
+        <div className="mt-8 pt-8 border-t border-slate-100 dark:border-white/5 text-center">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            {isLogin ? "Don't have an account?" : "Already have an account?"}
+            <Link 
+              to={isLogin ? '/signup' : '/login'} 
+              className="ml-2 text-primary-500 font-black hover:underline"
+            >
+              {isLogin ? 'Sign Up' : 'Sign In'}
+            </Link>
+          </p>
+
+          <div className="relative mb-8">
+             <div className="absolute inset-x-0 top-1/2 h-[1px] bg-slate-100 dark:bg-white/5" />
+             <span className="relative px-4 bg-white dark:bg-[#0f172a] text-[10px] font-black uppercase tracking-widest text-slate-400">Or continue with</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <button 
+              onClick={() => handleOAuthTrigger('google')}
+              className="flex items-center justify-center space-x-2 py-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-white/5 hover:bg-slate-100 transition-colors"
+            >
+              <Chrome className="w-4 h-4" />
+              <span className="text-xs font-bold">Google</span>
+            </button>
+            <button 
+              onClick={() => handleOAuthTrigger('github')}
+              className="flex items-center justify-center space-x-2 py-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-white/5 hover:bg-slate-100 transition-colors"
+            >
+              <Github className="w-4 h-4" />
+              <span className="text-xs font-bold">GitHub</span>
+            </button>
+          </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-4">
-          <button className="flex items-center justify-center space-x-2 py-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            <span className="text-sm font-bold">Google</span>
-          </button>
-          <button className="flex items-center justify-center space-x-2 py-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-            <Github className="w-5 h-5 text-slate-900 dark:text-white" />
-            <span className="text-sm font-bold">GitHub</span>
-          </button>
-        </div>
+        {/* High-Fidelity Account Picker Modal */}
+        <AnimatePresence>
+          {pickerType && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 30 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 30 }}
+                className="bg-[#0b0c0f] w-full max-w-[440px] rounded-[1.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] overflow-hidden border border-white/10 text-white font-sans"
+              >
+                <div className="p-10 pb-6 text-center">
+                  <div className="flex justify-center mb-6">
+                    {pickerType === 'google' ? (
+                      <Chrome className="w-8 h-8 text-primary-500" />
+                    ) : (
+                      <Github className="w-8 h-8 text-white" />
+                    )}
+                  </div>
+                  <h3 className="text-[28px] font-medium text-white mb-2 leading-tight">Choose an account</h3>
+                  <p className="text-base text-slate-300 mb-8 font-normal">
+                    to continue to <span className="text-sky-400 font-medium">DeepTrust</span>
+                  </p>
+                  
+                  <div className="space-y-0 -mx-10 border-t border-white/10">
+                    {(pickerType === 'google' ? [
+                      { name: 'ALN 36 XH Nihar', email: 'nihar11sawant@gmail.com', avatar: 'https://i.pravatar.cc/150?u=nihar1', status: null },
+                      { name: 'Nihar Sawant', email: '124nihar2027@sjcem.edu.in', avatar: 'N', status: 'Signed out' },
+                      { name: 'nihar sawant', email: 'niharsawant386@gmail.com', avatar: 'n', status: null }
+                    ] : [
+                      { name: 'nihar-saw', email: 'saw.work@github.com', avatar: 'https://i.pravatar.cc/150?u=github1', status: null },
+                      { name: 'DeepTrust Master', email: 'dev@deeptrust.io', avatar: 'D', status: null }
+                    ]).map((account, idx) => (
+                      <button
+                        key={account.email}
+                        onClick={() => handleOAuthSelect(account)}
+                        className={`w-full flex items-center space-x-4 px-10 py-5 transition-all hover:bg-white/5 text-left relative ${idx !== 0 ? 'border-t border-white/10' : ''}`}
+                      >
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden bg-indigo-600 border border-white/10 shrink-0">
+                          {account.avatar.startsWith('http') ? (
+                            <img src={account.avatar} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="font-bold text-white uppercase">{account.avatar}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <p className="font-medium text-[15px] text-white truncate">{account.name}</p>
+                          <p className="text-sm text-slate-400 truncate">{account.email}</p>
+                        </div>
+                        {account.status && (
+                          <span className="text-[13px] text-slate-400 font-normal shrink-0">{account.status}</span>
+                        )}
+                      </button>
+                    ))}
+                    
+                    <button className="w-full flex items-center space-x-4 px-10 py-5 transition-all hover:bg-white/5 border-t border-white/10 text-left">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center bg-transparent border border-white/20 shrink-0">
+                        <User className="w-5 h-5 text-slate-300" />
+                      </div>
+                      <p className="font-medium text-[15px] text-sky-400">Use another account</p>
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="px-10 py-8 text-[13px] leading-relaxed text-slate-400 font-normal">
+                  <p>
+                    Before using this app, you can review DeepTrust's{' '}
+                    <a href="#" className="text-sky-400 hover:underline">privacy policy</a> and{' '}
+                    <a href="#" className="text-sky-400 hover:underline">terms of service</a>.
+                  </p>
+                </div>
 
-        <p className="mt-10 text-center text-sm text-slate-500">
-          {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
-          <Link 
-            to={isLogin ? '/signup' : '/login'} 
-            className="text-primary-500 font-bold hover:underline"
-          >
-            {isLogin ? 'Sign Up' : 'Sign In'}
-          </Link>
-        </p>
+                <div className="px-10 pb-8 flex justify-end">
+                  <button 
+                    onClick={() => setPickerType(null)}
+                    className="px-4 py-2 text-sm font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-wider"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );
 };
+
+export default AuthPages;

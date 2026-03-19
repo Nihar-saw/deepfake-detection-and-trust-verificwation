@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, File, X, CheckCircle, BarChart, AlertCircle, Loader2, Play, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useToast } from '../App';
+import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 const UploadPage = () => {
   const [file, setFile] = useState(null);
@@ -13,6 +14,7 @@ const UploadPage = () => {
   const [progress, setProgress] = useState(0);
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const handleDrag = useCallback((e) => {
     e.preventDefault();
@@ -60,16 +62,17 @@ const UploadPage = () => {
   };
 
   const startAnalysis = async () => {
-    if (!file) return;
+    if (!file || !user) return;
 
     setIsAnalyzing(true);
     setProgress(0);
 
     const formData = new FormData();
+    formData.append('userId', user.id);
     formData.append('media', file);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/analyze', formData, {
+      const response = await axios.post('/api/analyze', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
